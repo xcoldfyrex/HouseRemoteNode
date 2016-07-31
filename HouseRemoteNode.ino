@@ -5,7 +5,8 @@
 #include "printf.h"
 
 #define SERVER_ADDRESS 1
-#define CLIENT_ADDRESS 2
+#define CLIENT_ADDRESS 3
+#define COMMON_CATHODE
 
 RH_NRF24 driver;
 RHReliableDatagram manager(driver, CLIENT_ADDRESS);
@@ -31,24 +32,28 @@ uint8_t data[] = "32767";
 
 
 void setup(void) {
-
+    analogWrite(redPin, 0);
+    analogWrite(greenPin, 0);
+    analogWrite(bluePin, 0);
     printf_begin();
     Serial.begin(115200);
-    Serial.println("init");
-    if (!manager.init()) {
-      Serial.println("radio init failed");
+    Serial.print("Radio init: ");
+    if (manager.init()) {
+      Serial.println("OK");
+      if (!driver.setRF(RH_NRF24::DataRate250kbps, RH_NRF24::TransmitPower0dBm))
+          Serial.println("SETRF FAIL");
     } else {
-      Serial.println("radio init ok");
+      Serial.println("FAIL");
     }
 }
 
 void loop(void) {
   uint8_t len = sizeof(buf);
   uint8_t from;
-  if (manager.recvfromAckTimeout(buf, &len, 2000, &from)) {
-    memcpy(payload.type, buf+8, 2);
-    memcpy(payload.message,buf+12, 8);
-    //printf("type %s message %s \n", payload.type,payload.message);
+  if (manager.recvfromAckTimeout(buf, &len, 1, &from)) {
+    memcpy(payload.type, buf, 2);
+    memcpy(payload.message,buf+2, 6);
+    printf("type %s message %s payload %s \n", payload.type,payload.message,buf);
     process_payload();
     if (!manager.sendtoWait(data, sizeof(data), from))
       Serial.println("sendtoWait failed");
@@ -59,7 +64,6 @@ void process_payload() {
     char R[3] = "00";
     char G[3] = "00";
     char B[3] = "00";
-    char W[3] = "00";
 
     // message type 0x00
     if (strcmp(payload.type, "00") == 0) {
@@ -70,16 +74,15 @@ void process_payload() {
 
     // message type 0x01
     if (strcmp(payload.type, "01") == 0) {
-        payload.message[8] = 0;
+        payload.message[6] = 0;
         //printf("type %s message %s \n", payload.type,payload.message);
-        if (strlen(payload.message) != 8) {
+        if (strlen(payload.message) != 6) {
             invalidPayload(payload.type);
         } else {
             memcpy(R, &payload.message[0], 2);
             memcpy(G, &payload.message[2], 2);
             memcpy(B, &payload.message[4], 2);
-            memcpy(W, &payload.message[6], 2);
-            setColor((int)strtol(R, NULL, 16), (int)strtol(G, NULL, 16), (int)strtol(B, NULL, 16), (int)strtol(W, NULL, 16));
+            setColor((int)strtol(R, NULL, 16), (int)strtol(G, NULL, 16), (int)strtol(B, NULL, 16));
             return;
         }
     }
@@ -105,7 +108,7 @@ void invalidPayload(char *message) {
     printf("Invalid payload for message type %s\n\r", message);
 }
 
-void setColor(int red, int green, int blue, int white) {
+void setColor(int red, int green, int blue) {
     //return;
     if (red < 0 || red > 255 ) {
       red = 254;
@@ -122,12 +125,13 @@ void setColor(int red, int green, int blue, int white) {
       Serial.println("Invalid blue");
     }
 
-    if (white < 0 || white > 255 ) {
-      white = 254;
-      Serial.println("Invalid white");
-    }
+    #ifdef COMMON_ANODE
+      red = 255 - red;
+      green = 255 - green;
+      blue = 255 - blue;
+    #endif
 
-    printf("Setting PWM to R:%u G:%u B:%u W:%u\n\r",red, green, blue, white);
+    printf("Setting PWM to R:%u G:%u B:%u\n\r",red, green, blue);
     analogWrite(redPin, red);
     analogWrite(greenPin, green);
     analogWrite(bluePin, blue);
