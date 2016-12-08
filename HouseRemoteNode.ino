@@ -5,7 +5,7 @@
 #include "printf.h"
 
 #define SERVER_ADDRESS 1
-#define CLIENT_ADDRESS 3
+#define CLIENT_ADDRESS 2
 #define COMMON_CATHODE
 
 RH_NRF24 driver;
@@ -35,6 +35,7 @@ void setup(void) {
     analogWrite(redPin, 0);
     analogWrite(greenPin, 0);
     analogWrite(bluePin, 0);
+    setColor((int)strtol("ff", NULL, 16), (int)strtol("40", NULL, 16), (int)strtol("00", NULL, 16));
     printf_begin();
     Serial.begin(115200);
     Serial.print("Radio init: ");
